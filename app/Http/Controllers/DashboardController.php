@@ -15,19 +15,17 @@ class DashboardController extends Controller
      */
     public function index(): Response
     {
-        $userId = Auth::id();
+        // Get global file statistics (all users)
+        $stats = $this->getFileStatistics();
         
-        // Get file statistics
-        $stats = $this->getFileStatistics($userId);
+        // Get global storage usage (all users)
+        $storageUsage = $this->getStorageUsage();
         
-        // Get storage usage
-        $storageUsage = $this->getStorageUsage($userId);
+        // Get recent files (all users)
+        $recentFiles = $this->getRecentFiles();
         
-        // Get recent files
-        $recentFiles = $this->getRecentFiles($userId);
-        
-        // Get file type breakdown
-        $fileTypeBreakdown = $this->getFileTypeBreakdown($userId);
+        // Get file type breakdown (all users)
+        $fileTypeBreakdown = $this->getFileTypeBreakdown();
 
         return Inertia::render('dashboard', [
             'stats' => $stats,
@@ -40,36 +38,31 @@ class DashboardController extends Controller
     /**
      * Get file statistics
      */
-    private function getFileStatistics(int $userId): array
+    private function getFileStatistics(): array
     {
-        $totalFiles = FileManager::where('user_id', $userId)
-            ->notDeleted()
+        $totalFiles = FileManager::notDeleted()
             ->where('is_folder', false)
             ->count();
 
-        $totalFolders = FileManager::where('user_id', $userId)
-            ->notDeleted()
+        $totalFolders = FileManager::notDeleted()
             ->where('is_folder', true)
             ->count();
 
-        $totalImages = FileManager::where('user_id', $userId)
-            ->notDeleted()
+        $totalImages = FileManager::notDeleted()
             ->where('is_folder', false)
             ->where(function ($query) {
                 $query->where('mime_type', 'like', 'image/%');
             })
             ->count();
 
-        $totalVideos = FileManager::where('user_id', $userId)
-            ->notDeleted()
+        $totalVideos = FileManager::notDeleted()
             ->where('is_folder', false)
             ->where(function ($query) {
                 $query->where('mime_type', 'like', 'video/%');
             })
             ->count();
 
-        $totalDocuments = FileManager::where('user_id', $userId)
-            ->notDeleted()
+        $totalDocuments = FileManager::notDeleted()
             ->where('is_folder', false)
             ->where(function ($query) {
                 $query->where('mime_type', 'like', 'application/pdf')
@@ -79,8 +72,7 @@ class DashboardController extends Controller
             })
             ->count();
 
-        $totalArchives = FileManager::where('user_id', $userId)
-            ->notDeleted()
+        $totalArchives = FileManager::notDeleted()
             ->where('is_folder', false)
             ->where(function ($query) {
                 $query->where('mime_type', 'like', 'application/zip')
@@ -89,8 +81,7 @@ class DashboardController extends Controller
             })
             ->count();
 
-        $deletedFiles = FileManager::where('user_id', $userId)
-            ->deleted()
+        $deletedFiles = FileManager::deleted()
             ->count();
 
         return [
@@ -105,29 +96,25 @@ class DashboardController extends Controller
     }
 
     /**
-     * Get storage usage statistics
+     * Get global storage usage statistics (all users)
      */
-    private function getStorageUsage(int $userId): array
+    private function getStorageUsage(): array
     {
-        $totalSize = FileManager::where('user_id', $userId)
-            ->notDeleted()
+        $totalSize = FileManager::notDeleted()
             ->where('is_folder', false)
             ->sum('size');
 
-        $imageSize = FileManager::where('user_id', $userId)
-            ->notDeleted()
+        $imageSize = FileManager::notDeleted()
             ->where('is_folder', false)
             ->where('mime_type', 'like', 'image/%')
             ->sum('size');
 
-        $videoSize = FileManager::where('user_id', $userId)
-            ->notDeleted()
+        $videoSize = FileManager::notDeleted()
             ->where('is_folder', false)
             ->where('mime_type', 'like', 'video/%')
             ->sum('size');
 
-        $documentSize = FileManager::where('user_id', $userId)
-            ->notDeleted()
+        $documentSize = FileManager::notDeleted()
             ->where('is_folder', false)
             ->where(function ($query) {
                 $query->where('mime_type', 'like', 'application/pdf')
@@ -137,8 +124,7 @@ class DashboardController extends Controller
             })
             ->sum('size');
 
-        $archiveSize = FileManager::where('user_id', $userId)
-            ->notDeleted()
+        $archiveSize = FileManager::notDeleted()
             ->where('is_folder', false)
             ->where(function ($query) {
                 $query->where('mime_type', 'like', 'application/zip')
@@ -162,12 +148,11 @@ class DashboardController extends Controller
     }
 
     /**
-     * Get recent files
+     * Get recent files (all users)
      */
-    private function getRecentFiles(int $userId): array
+    private function getRecentFiles(): array
     {
-        return FileManager::where('user_id', $userId)
-            ->notDeleted()
+        return FileManager::notDeleted()
             ->where('is_folder', false)
             ->with('user')
             ->orderBy('created_at', 'desc')
@@ -195,12 +180,11 @@ class DashboardController extends Controller
     }
 
     /**
-     * Get file type breakdown for charts
+     * Get global file type breakdown for charts (all users)
      */
-    private function getFileTypeBreakdown(int $userId): array
+    private function getFileTypeBreakdown(): array
     {
-        $breakdown = FileManager::where('user_id', $userId)
-            ->notDeleted()
+        $breakdown = FileManager::notDeleted()
             ->where('is_folder', false)
             ->selectRaw('
                 CASE 

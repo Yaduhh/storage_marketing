@@ -132,7 +132,7 @@ export default function Dashboard({ stats, storageUsage, recentFiles, fileTypeBr
                         <CardContent className="p-6">
                             <div className="flex items-center justify-between">
                                 <div>
-                                    <p className="text-sm font-medium text-zinc-600 dark:text-zinc-400">Total Files</p>
+                                    <p className="text-sm font-medium text-zinc-600 dark:text-zinc-400">All Files (Global)</p>
                                     <p className="text-3xl font-bold text-zinc-900 dark:text-white">{stats.totalFiles.toLocaleString()}</p>
                                 </div>
                                 <div className="w-12 h-12 bg-blue-100 dark:bg-blue-900/20 rounded-lg flex items-center justify-center">
@@ -147,7 +147,7 @@ export default function Dashboard({ stats, storageUsage, recentFiles, fileTypeBr
                         <CardContent className="p-6">
                             <div className="flex items-center justify-between">
                                 <div>
-                                    <p className="text-sm font-medium text-zinc-600 dark:text-zinc-400">Total Folders</p>
+                                    <p className="text-sm font-medium text-zinc-600 dark:text-zinc-400">All Folders (Global)</p>
                                     <p className="text-3xl font-bold text-zinc-900 dark:text-white">{stats.totalFolders.toLocaleString()}</p>
                                 </div>
                                 <div className="w-12 h-12 bg-yellow-100 dark:bg-yellow-900/20 rounded-lg flex items-center justify-center">
@@ -250,7 +250,7 @@ export default function Dashboard({ stats, storageUsage, recentFiles, fileTypeBr
                         <CardHeader>
                             <CardTitle className="flex items-center gap-2">
                                 <Clock className="w-5 h-5" />
-                                Recent Files
+                                Recent Files (Global)
                             </CardTitle>
                         </CardHeader>
                         <CardContent>
