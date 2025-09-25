@@ -26,7 +26,6 @@ class FileManagerController extends Controller
         $filterDate = $request->get('filter_date');
         
         $query = FileManager::with('user')
-            ->where('user_id', Auth::id())
             ->where('parent_id', $parentId)
             ->notDeleted(); // Hanya tampilkan file yang belum di-delete
 
@@ -161,7 +160,6 @@ class FileManagerController extends Controller
     public function trash(Request $request): Response
     {
         $files = FileManager::with('user')
-            ->where('user_id', Auth::id())
             ->deleted() // Hanya tampilkan file yang sudah di-delete
             ->orderBy('deleted_at', 'desc')
             ->get()
@@ -267,8 +265,7 @@ class FileManagerController extends Controller
         $folderName = $request->get('name');
 
         // Check if folder name already exists in the same parent
-        $existingFolder = FileManager::where('user_id', Auth::id())
-            ->where('parent_id', $parentId)
+        $existingFolder = FileManager::where('parent_id', $parentId)
             ->where('name', $folderName)
             ->where('is_folder', true)
             ->notDeleted() // Hanya cek folder yang belum di-delete
@@ -412,8 +409,7 @@ class FileManagerController extends Controller
         $newName = $request->get('name');
 
         // Check if name already exists in the same parent
-        $existingItem = FileManager::where('user_id', Auth::id())
-            ->where('parent_id', $fileManager->parent_id)
+        $existingItem = FileManager::where('parent_id', $fileManager->parent_id)
             ->where('name', $newName)
             ->where('id', '!=', $fileManager->id)
             ->notDeleted() // Hanya cek item yang belum di-delete
@@ -470,8 +466,7 @@ class FileManagerController extends Controller
         $fileIds = $request->get('file_ids');
         $newParentId = $request->get('parent_id');
 
-        $files = FileManager::where('user_id', Auth::id())
-            ->whereIn('id', $fileIds)
+        $files = FileManager::whereIn('id', $fileIds)
             ->get();
 
         $movedCount = 0;
@@ -508,8 +503,7 @@ class FileManagerController extends Controller
 
         $fileIds = $request->get('file_ids');
 
-        $files = FileManager::where('user_id', Auth::id())
-            ->whereIn('id', $fileIds)
+        $files = FileManager::whereIn('id', $fileIds)
             ->get();
 
         $deletedCount = 0;
@@ -663,8 +657,7 @@ class FileManagerController extends Controller
     private function getFoldersForMove(?int $excludeId = null): array
     {
         try {
-            $query = FileManager::where('user_id', Auth::id())
-                ->where('is_folder', true)
+            $query = FileManager::where('is_folder', true)
                 ->notDeleted()
                 ->with('parent'); // Load parent relationship
 
