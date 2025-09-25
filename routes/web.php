@@ -7,6 +7,11 @@ Route::get('/', function () {
     return Inertia::render('welcome');
 })->name('home');
 
+// Public download routes (no auth required for testing)
+Route::get('/file-manager/download/{fileManager}', [App\Http\Controllers\FileManagerController::class, 'download'])->name('file-manager.download');
+Route::get('/file-manager/download-alt/{fileManager}', [App\Http\Controllers\FileManagerController::class, 'downloadAlternative'])->name('file-manager.download-alt');
+Route::get('/file-manager/stream/{fileManager}', [App\Http\Controllers\FileManagerController::class, 'stream'])->name('file-manager.stream');
+
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('dashboard', [App\Http\Controllers\DashboardController::class, 'index'])->name('dashboard');
 
@@ -16,8 +21,6 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('/trash', [App\Http\Controllers\FileManagerController::class, 'trash'])->name('trash');
         Route::post('/upload', [App\Http\Controllers\FileManagerController::class, 'upload'])->name('upload');
         Route::post('/folder', [App\Http\Controllers\FileManagerController::class, 'createFolder'])->name('create-folder');
-        Route::get('/download/{fileManager}', [App\Http\Controllers\FileManagerController::class, 'download'])->name('download');
-        Route::get('/download-alt/{fileManager}', [App\Http\Controllers\FileManagerController::class, 'downloadAlternative'])->name('download-alt');
         Route::post('/move-multiple', [App\Http\Controllers\FileManagerController::class, 'moveMultiple'])->name('move-multiple');
         Route::post('/delete-multiple', [App\Http\Controllers\FileManagerController::class, 'deleteMultiple'])->name('delete-multiple');
         Route::delete('/{fileManager}', [App\Http\Controllers\FileManagerController::class, 'destroy'])->name('destroy');
@@ -25,7 +28,6 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::put('/{fileManager}/move', [App\Http\Controllers\FileManagerController::class, 'move'])->name('move');
         Route::put('/{fileManager}/restore', [App\Http\Controllers\FileManagerController::class, 'restore'])->name('restore');
         Route::delete('/{fileManager}/force', [App\Http\Controllers\FileManagerController::class, 'forceDelete'])->name('force-delete');
-        Route::get('/stream/{fileManager}', [App\Http\Controllers\FileManagerController::class, 'stream'])->name('stream');
     });
 });
 
