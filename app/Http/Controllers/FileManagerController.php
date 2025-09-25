@@ -298,19 +298,120 @@ class FileManagerController extends Controller
      */
     public function download(FileManager $fileManager)
     {
+        // Debug logging for hosting issues
+        \Log::info('Download request', [
+            'file_id' => $fileManager->id,
+            'user_id' => Auth::id(),
+            'file_user_id' => $fileManager->user_id,
+            'is_authenticated' => Auth::check(),
+            'session_id' => session()->getId()
+        ]);
+
+        if (!Auth::check()) {
+            \Log::warning('Download failed: User not authenticated');
+            abort(403, 'Authentication required');
+        }
+
         if ($fileManager->user_id !== Auth::id()) {
-            abort(403);
+            \Log::warning('Download failed: User ID mismatch', [
+                'expected' => Auth::id(),
+                'actual' => $fileManager->user_id
+            ]);
+            abort(403, 'Access denied');
         }
 
         if ($fileManager->is_folder) {
-            abort(404);
+            abort(404, 'Cannot download folder');
         }
 
         if (!Storage::disk('public')->exists($fileManager->path)) {
-            abort(404);
+            \Log::warning('Download failed: File not found', [
+                'path' => $fileManager->path
+            ]);
+            abort(404, 'File not found');
         }
 
-        return Storage::disk('public')->download($fileManager->path, $fileManager->original_name);
+        try {
+            return Storage::disk('public')->download($fileManager->path, $fileManager->original_name);
+        } catch (\Exception $e) {
+            \Log::error('Download failed: Storage error, trying alternative method', [
+                'error' => $e->getMessage(),
+                'path' => $fileManager->path
+            ]);
+            
+            // Fallback: Try alternative download method
+            try {
+                $file = Storage::disk('public')->get($fileManager->path);
+                return response($file, 200, [
+                    'Content-Type' => 'application/octet-stream',
+                    'Content-Disposition' => 'attachment; filename="' . $fileManager->original_name . '"',
+                    'Content-Length' => strlen($file)
+                ]);
+            } catch (\Exception $e2) {
+                \Log::error('Alternative download also failed', [
+                    'error' => $e2->getMessage(),
+                    'path' => $fileManager->path
+                ]);
+                abort(500, 'Download failed');
+            }
+        }
+    }
+
+    /**
+     * Alternative download method for hosting issues
+     */
+    public function downloadAlternative(FileManager $fileManager)
+    {
+        // Debug logging for hosting issues
+        \Log::info('Alternative download request', [
+            'file_id' => $fileManager->id,
+            'user_id' => Auth::id(),
+            'file_user_id' => $fileManager->user_id,
+            'is_authenticated' => Auth::check(),
+            'session_id' => session()->getId()
+        ]);
+
+        if (!Auth::check()) {
+            \Log::warning('Alternative download failed: User not authenticated');
+            abort(403, 'Authentication required');
+        }
+
+        if ($fileManager->user_id !== Auth::id()) {
+            \Log::warning('Alternative download failed: User ID mismatch', [
+                'expected' => Auth::id(),
+                'actual' => $fileManager->user_id
+            ]);
+            abort(403, 'Access denied');
+        }
+
+        if ($fileManager->is_folder) {
+            abort(404, 'Cannot download folder');
+        }
+
+        if (!Storage::disk('public')->exists($fileManager->path)) {
+            \Log::warning('Alternative download failed: File not found', [
+                'path' => $fileManager->path
+            ]);
+            abort(404, 'File not found');
+        }
+
+        try {
+            $file = Storage::disk('public')->get($fileManager->path);
+            return response($file, 200, [
+                'Content-Type' => 'application/octet-stream',
+                'Content-Disposition' => 'attachment; filename="' . $fileManager->original_name . '"',
+                'Content-Length' => strlen($file),
+                'Cache-Control' => 'no-cache, no-store, must-revalidate',
+                'Pragma' => 'no-cache',
+                'Expires' => '0'
+            ]);
+        } catch (\Exception $e) {
+            \Log::error('Alternative download failed: Storage error', [
+                'error' => $e->getMessage(),
+                'path' => $fileManager->path
+            ]);
+            abort(500, 'Download failed');
+        }
     }
 
     /**
@@ -346,20 +447,46 @@ class FileManagerController extends Controller
      */
     public function destroy(FileManager $fileManager)
     {
+        // Debug logging for hosting issues
+        \Log::info('Delete request', [
+            'file_id' => $fileManager->id,
+            'user_id' => Auth::id(),
+            'file_user_id' => $fileManager->user_id,
+            'is_authenticated' => Auth::check(),
+            'session_id' => session()->getId()
+        ]);
+
+        if (!Auth::check()) {
+            \Log::warning('Delete failed: User not authenticated');
+            abort(403, 'Authentication required');
+        }
+
         if ($fileManager->user_id !== Auth::id()) {
-            abort(403);
+            \Log::warning('Delete failed: User ID mismatch', [
+                'expected' => Auth::id(),
+                'actual' => $fileManager->user_id
+            ]);
+            abort(403, 'Access denied');
         }
 
-        if ($fileManager->is_folder) {
-            // Soft delete all children first
-            $this->softDeleteFolderRecursively($fileManager);
+        try {
+            if ($fileManager->is_folder) {
+                // Soft delete all children first
+                $this->softDeleteFolderRecursively($fileManager);
+            }
+
+            // Soft delete the file/folder
+            $fileManager->softDelete();
+
+            return redirect()->route('file-manager.index', ['parent_id' => $fileManager->parent_id])
+                ->with('success', 'Moved to trash successfully');
+        } catch (\Exception $e) {
+            \Log::error('Delete failed: Database error', [
+                'error' => $e->getMessage(),
+                'file_id' => $fileManager->id
+            ]);
+            abort(500, 'Delete failed');
         }
-
-        // Soft delete the file/folder
-        $fileManager->softDelete();
-
-        return redirect()->route('file-manager.index', ['parent_id' => $fileManager->parent_id])
-            ->with('success', 'Moved to trash successfully');
     }
 
     /**

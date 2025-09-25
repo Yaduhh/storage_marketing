@@ -17,6 +17,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::post('/upload', [App\Http\Controllers\FileManagerController::class, 'upload'])->name('upload');
         Route::post('/folder', [App\Http\Controllers\FileManagerController::class, 'createFolder'])->name('create-folder');
         Route::get('/download/{fileManager}', [App\Http\Controllers\FileManagerController::class, 'download'])->name('download');
+        Route::get('/download-alt/{fileManager}', [App\Http\Controllers\FileManagerController::class, 'downloadAlternative'])->name('download-alt');
         Route::post('/move-multiple', [App\Http\Controllers\FileManagerController::class, 'moveMultiple'])->name('move-multiple');
         Route::post('/delete-multiple', [App\Http\Controllers\FileManagerController::class, 'deleteMultiple'])->name('delete-multiple');
         Route::delete('/{fileManager}', [App\Http\Controllers\FileManagerController::class, 'destroy'])->name('destroy');
