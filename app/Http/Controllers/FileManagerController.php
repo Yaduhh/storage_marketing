@@ -19,16 +19,102 @@ class FileManagerController extends Controller
     public function index(Request $request): Response
     {
         $parentId = $request->get('parent_id');
+        $search = $request->get('search');
+        $sortBy = $request->get('sort_by', 'name');
+        $sortOrder = $request->get('sort_order', 'asc');
+        $filterType = $request->get('filter_type');
+        $filterDate = $request->get('filter_date');
         
-        $files = FileManager::with('user')
+        $query = FileManager::with('user')
             ->where('user_id', Auth::id())
             ->where('parent_id', $parentId)
-            ->orderBy('is_folder', 'desc')
-            ->orderBy('name')
-            ->get()
+            ->notDeleted(); // Hanya tampilkan file yang belum di-delete
+
+        // Apply search filter
+        if ($search) {
+            $query->where(function ($q) use ($search) {
+                $q->where('name', 'like', "%{$search}%")
+                  ->orWhere('original_name', 'like', "%{$search}%");
+            });
+        }
+
+        // Apply type filter
+        if ($filterType) {
+            switch ($filterType) {
+                case 'images':
+                    $query->where('mime_type', 'like', 'image/%');
+                    break;
+                case 'videos':
+                    $query->where('mime_type', 'like', 'video/%');
+                    break;
+                case 'documents':
+                    $query->where(function ($q) {
+                        $q->where('mime_type', 'like', 'application/pdf')
+                          ->orWhere('mime_type', 'like', 'application/msword')
+                          ->orWhere('mime_type', 'like', 'application/vnd.openxmlformats-officedocument%')
+                          ->orWhere('mime_type', 'like', 'text/%');
+                    });
+                    break;
+                case 'archives':
+                    $query->where(function ($q) {
+                        $q->where('mime_type', 'like', 'application/zip')
+                          ->orWhere('mime_type', 'like', 'application/x-rar%')
+                          ->orWhere('mime_type', 'like', 'application/x-7z%');
+                    });
+                    break;
+                case 'folders':
+                    $query->where('is_folder', true);
+                    break;
+            }
+        }
+
+        // Apply date filter
+        if ($filterDate) {
+            switch ($filterDate) {
+                case 'today':
+                    $query->whereDate('created_at', today());
+                    break;
+                case 'week':
+                    $query->where('created_at', '>=', now()->subWeek());
+                    break;
+                case 'month':
+                    $query->where('created_at', '>=', now()->subMonth());
+                    break;
+                case 'year':
+                    $query->where('created_at', '>=', now()->subYear());
+                    break;
+            }
+        }
+
+        // Apply sorting
+        switch ($sortBy) {
+            case 'name':
+                $query->orderBy('is_folder', 'desc')->orderBy('name', $sortOrder);
+                break;
+            case 'size':
+                $query->orderBy('is_folder', 'desc')->orderBy('size', $sortOrder);
+                break;
+            case 'date':
+                $query->orderBy('is_folder', 'desc')->orderBy('created_at', $sortOrder);
+                break;
+            case 'type':
+                $query->orderBy('is_folder', 'desc')->orderBy('mime_type', $sortOrder);
+                break;
+            default:
+                $query->orderBy('is_folder', 'desc')->orderBy('name', 'asc');
+        }
+        
+        $files = $query->get()
             ->map(function ($file) {
-                // Generate correct URL with port 8000
-                $url = $file->is_folder ? '' : url('/storage/' . $file->path);
+                // Generate correct URL - use stream for videos, storage for others
+                $url = '';
+                if (!$file->is_folder) {
+                    if ($file->mime_type && str_starts_with($file->mime_type, 'video/')) {
+                        $url = route('file-manager.stream', $file->id);
+                    } else {
+                        $url = url('/storage/' . $file->path);
+                    }
+                }
                 
                 return [
                     'id' => $file->id,
@@ -52,11 +138,68 @@ class FileManagerController extends Controller
             });
 
         $breadcrumbs = $this->getBreadcrumbs($parentId);
+        $folders = $this->getFoldersForMove($parentId);
 
         return Inertia::render('FileManager/Index', [
             'files' => $files,
             'breadcrumbs' => $breadcrumbs,
             'currentParentId' => $parentId,
+            'folders' => $folders,
+            'filters' => [
+                'search' => $search,
+                'sort_by' => $sortBy,
+                'sort_order' => $sortOrder,
+                'filter_type' => $filterType,
+                'filter_date' => $filterDate,
+            ],
+        ]);
+    }
+
+    /**
+     * Display the trash page (deleted files)
+     */
+    public function trash(Request $request): Response
+    {
+        $files = FileManager::with('user')
+            ->where('user_id', Auth::id())
+            ->deleted() // Hanya tampilkan file yang sudah di-delete
+            ->orderBy('deleted_at', 'desc')
+            ->get()
+            ->map(function ($file) {
+                // Generate correct URL - use stream for videos, storage for others
+                $url = '';
+                if (!$file->is_folder) {
+                    if ($file->mime_type && str_starts_with($file->mime_type, 'video/')) {
+                        $url = route('file-manager.stream', $file->id);
+                    } else {
+                        $url = url('/storage/' . $file->path);
+                    }
+                }
+                
+                return [
+                    'id' => $file->id,
+                    'name' => $file->name,
+                    'original_name' => $file->original_name,
+                    'path' => $file->path,
+                    'type' => $file->type,
+                    'size' => $file->size,
+                    'mime_type' => $file->mime_type,
+                    'extension' => $file->extension,
+                    'is_folder' => $file->is_folder,
+                    'created_at' => $file->created_at,
+                    'updated_at' => $file->updated_at,
+                    'deleted_at' => $file->deleted_at,
+                    'url' => $url,
+                    'human_size' => $file->human_size,
+                    'uploader' => [
+                        'name' => $file->user->name,
+                        'email' => $file->user->email,
+                    ],
+                ];
+            });
+
+        return Inertia::render('FileManager/Trash', [
+            'files' => $files,
         ]);
     }
 
@@ -68,7 +211,7 @@ class FileManagerController extends Controller
 
         $request->validate([
             'files' => 'required|array|min:1',
-            'files.*' => 'required|file|max:102400', // 100MB max
+            'files.*' => 'required|file|max:1024000', // 1GB max (1024000 KB)
             'parent_id' => 'nullable|exists:file_managers,id',
         ]);
 
@@ -128,6 +271,7 @@ class FileManagerController extends Controller
             ->where('parent_id', $parentId)
             ->where('name', $folderName)
             ->where('is_folder', true)
+            ->notDeleted() // Hanya cek folder yang belum di-delete
             ->first();
 
         if ($existingFolder) {
@@ -170,7 +314,35 @@ class FileManagerController extends Controller
     }
 
     /**
-     * Delete a file or folder
+     * Stream a file (for video preview)
+     */
+    public function stream(FileManager $fileManager)
+    {
+        if ($fileManager->user_id !== Auth::id()) {
+            abort(403);
+        }
+
+        if ($fileManager->is_folder) {
+            abort(404);
+        }
+
+        if (!Storage::disk('public')->exists($fileManager->path)) {
+            abort(404);
+        }
+
+        $file = Storage::disk('public')->get($fileManager->path);
+        $mimeType = Storage::disk('public')->mimeType($fileManager->path);
+
+        return response($file, 200, [
+            'Content-Type' => $mimeType,
+            'Content-Length' => Storage::disk('public')->size($fileManager->path),
+            'Accept-Ranges' => 'bytes',
+            'Cache-Control' => 'public, max-age=3600',
+        ]);
+    }
+
+    /**
+     * Soft delete a file or folder
      */
     public function destroy(FileManager $fileManager)
     {
@@ -179,17 +351,15 @@ class FileManagerController extends Controller
         }
 
         if ($fileManager->is_folder) {
-            // Delete all children first
-            $this->deleteFolderRecursively($fileManager);
-        } else {
-            // Delete file from storage
-            Storage::disk('public')->delete($fileManager->path);
+            // Soft delete all children first
+            $this->softDeleteFolderRecursively($fileManager);
         }
 
-        $fileManager->delete();
+        // Soft delete the file/folder
+        $fileManager->softDelete();
 
         return redirect()->route('file-manager.index', ['parent_id' => $fileManager->parent_id])
-            ->with('success', 'Deleted successfully');
+            ->with('success', 'Moved to trash successfully');
     }
 
     /**
@@ -212,6 +382,7 @@ class FileManagerController extends Controller
             ->where('parent_id', $fileManager->parent_id)
             ->where('name', $newName)
             ->where('id', '!=', $fileManager->id)
+            ->notDeleted() // Hanya cek item yang belum di-delete
             ->first();
 
         if ($existingItem) {
@@ -255,6 +426,77 @@ class FileManagerController extends Controller
     }
 
     /**
+     * Move multiple files/folders
+     */
+    public function moveMultiple(Request $request)
+    {
+        $request->validate([
+            'file_ids' => 'required|array|min:1',
+            'file_ids.*' => 'exists:file_managers,id',
+            'parent_id' => 'nullable|exists:file_managers,id',
+        ]);
+
+        $fileIds = $request->get('file_ids');
+        $newParentId = $request->get('parent_id');
+
+        $files = FileManager::where('user_id', Auth::id())
+            ->whereIn('id', $fileIds)
+            ->get();
+
+        $movedCount = 0;
+        $errors = [];
+
+        foreach ($files as $file) {
+            // Check if moving to a folder that is a child of current item (prevent circular reference)
+            if ($newParentId && $this->isCircularReference($file, $newParentId)) {
+                $errors[] = "Cannot move '{$file->name}' into itself or its subfolder";
+                continue;
+            }
+
+            $file->update(['parent_id' => $newParentId]);
+            $movedCount++;
+        }
+
+        if (!empty($errors)) {
+            return back()->withErrors(['move' => implode(', ', $errors)]);
+        }
+
+        return redirect()->route('file-manager.index', ['parent_id' => $newParentId])
+            ->with('success', "Successfully moved {$movedCount} item(s)");
+    }
+
+    /**
+     * Delete multiple files/folders
+     */
+    public function deleteMultiple(Request $request)
+    {
+        $request->validate([
+            'file_ids' => 'required|array|min:1',
+            'file_ids.*' => 'exists:file_managers,id',
+        ]);
+
+        $fileIds = $request->get('file_ids');
+
+        $files = FileManager::where('user_id', Auth::id())
+            ->whereIn('id', $fileIds)
+            ->get();
+
+        $deletedCount = 0;
+
+        foreach ($files as $file) {
+            if ($file->is_folder) {
+                // Soft delete all children first
+                $this->softDeleteFolderRecursively($file);
+            }
+            $file->softDelete();
+            $deletedCount++;
+        }
+
+        return redirect()->route('file-manager.index')
+            ->with('success', "Successfully moved {$deletedCount} item(s) to trash");
+    }
+
+    /**
      * Get breadcrumbs for navigation
      */
     private function getBreadcrumbs(?int $parentId): array
@@ -279,19 +521,94 @@ class FileManagerController extends Controller
     }
 
     /**
-     * Delete folder and all its contents recursively
+     * Restore a file or folder from trash
      */
-    private function deleteFolderRecursively(FileManager $folder): void
+    public function restore(FileManager $fileManager)
+    {
+        if ($fileManager->user_id !== Auth::id()) {
+            abort(403);
+        }
+
+        if ($fileManager->is_folder) {
+            // Restore all children first
+            $this->restoreFolderRecursively($fileManager);
+        }
+
+        // Restore the file/folder
+        $fileManager->restore();
+
+        return redirect()->route('file-manager.index', ['parent_id' => $fileManager->parent_id])
+            ->with('success', 'Restored successfully');
+    }
+
+    /**
+     * Force delete a file or folder permanently
+     */
+    public function forceDelete(FileManager $fileManager)
+    {
+        if ($fileManager->user_id !== Auth::id()) {
+            abort(403);
+        }
+
+        if ($fileManager->is_folder) {
+            // Force delete all children first
+            $this->forceDeleteFolderRecursively($fileManager);
+        } else {
+            // Delete file from storage
+            Storage::disk('public')->delete($fileManager->path);
+        }
+
+        // Force delete the file/folder
+        $fileManager->forceDelete();
+
+        return redirect()->route('file-manager.index', ['parent_id' => $fileManager->parent_id])
+            ->with('success', 'Permanently deleted successfully');
+    }
+
+    /**
+     * Soft delete folder and all its contents recursively
+     */
+    private function softDeleteFolderRecursively(FileManager $folder): void
+    {
+        $children = $folder->children()->notDeleted()->get();
+
+        foreach ($children as $child) {
+            if ($child->is_folder) {
+                $this->softDeleteFolderRecursively($child);
+            }
+            $child->softDelete();
+        }
+    }
+
+    /**
+     * Restore folder and all its contents recursively
+     */
+    private function restoreFolderRecursively(FileManager $folder): void
+    {
+        $children = $folder->children()->deleted()->get();
+
+        foreach ($children as $child) {
+            if ($child->is_folder) {
+                $this->restoreFolderRecursively($child);
+            }
+            $child->restore();
+        }
+    }
+
+    /**
+     * Force delete folder and all its contents recursively
+     */
+    private function forceDeleteFolderRecursively(FileManager $folder): void
     {
         $children = $folder->children;
 
         foreach ($children as $child) {
             if ($child->is_folder) {
-                $this->deleteFolderRecursively($child);
+                $this->forceDeleteFolderRecursively($child);
             } else {
                 Storage::disk('public')->delete($child->path);
             }
-            $child->delete();
+            $child->forceDelete();
         }
     }
 
@@ -313,5 +630,61 @@ class FileManagerController extends Controller
         }
 
         return false;
+    }
+
+    /**
+     * Get folders for move operation
+     */
+    private function getFoldersForMove(?int $excludeId = null): array
+    {
+        try {
+            $query = FileManager::where('user_id', Auth::id())
+                ->where('is_folder', true)
+                ->notDeleted()
+                ->with('parent'); // Load parent relationship
+
+            if ($excludeId) {
+                // Exclude current folder and its children
+                $query->where('id', '!=', $excludeId);
+            }
+
+            return $query->orderBy('name')
+                ->get()
+                ->map(function ($folder) {
+                    return [
+                        'id' => $folder->id,
+                        'name' => $folder->name,
+                        'path' => $this->getFolderPath($folder),
+                    ];
+                })
+                ->toArray();
+        } catch (\Exception $e) {
+            \Log::error('Error getting folders for move: ' . $e->getMessage());
+            return [];
+        }
+    }
+
+    /**
+     * Get folder path for display
+     */
+    private function getFolderPath(FileManager $folder): string
+    {
+        try {
+            $path = [];
+            $current = $folder;
+            $maxDepth = 10; // Prevent infinite loop
+            $depth = 0;
+
+            while ($current && $depth < $maxDepth) {
+                $path[] = $current->name;
+                $current = $current->parent;
+                $depth++;
+            }
+
+            return implode(' / ', array_reverse($path));
+        } catch (\Exception $e) {
+            \Log::error('Error getting folder path: ' . $e->getMessage());
+            return $folder->name;
+        }
     }
 }

@@ -5,11 +5,12 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Facades\Storage;
 
 class FileManager extends Model
 {
-    use HasFactory;
+    use HasFactory, SoftDeletes;
 
     protected $fillable = [
         'name',
@@ -21,11 +22,13 @@ class FileManager extends Model
         'extension',
         'parent_id',
         'is_folder',
+        'status_deleted',
         'user_id',
     ];
 
     protected $casts = [
         'is_folder' => 'boolean',
+        'status_deleted' => 'boolean',
         'size' => 'integer',
     ];
 
@@ -144,5 +147,51 @@ class FileManager extends Model
             'application/vnd.openxmlformats-officedocument.presentationml.presentation',
             'text/plain',
         ]);
+    }
+
+    /**
+     * Soft delete using status_deleted
+     */
+    public function softDelete(): bool
+    {
+        return $this->update([
+            'status_deleted' => true,
+            'deleted_at' => now(),
+        ]);
+    }
+
+    /**
+     * Restore soft deleted item
+     */
+    public function restore(): bool
+    {
+        return $this->update([
+            'status_deleted' => false,
+            'deleted_at' => null,
+        ]);
+    }
+
+    /**
+     * Check if item is soft deleted
+     */
+    public function isDeleted(): bool
+    {
+        return $this->status_deleted === true;
+    }
+
+    /**
+     * Scope to get only non-deleted items
+     */
+    public function scopeNotDeleted($query)
+    {
+        return $query->where('status_deleted', false);
+    }
+
+    /**
+     * Scope to get only deleted items
+     */
+    public function scopeDeleted($query)
+    {
+        return $query->where('status_deleted', true);
     }
 }

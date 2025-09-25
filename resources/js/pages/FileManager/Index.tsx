@@ -5,6 +5,8 @@ import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { 
   Upload, 
   FolderPlus, 
@@ -20,7 +22,11 @@ import {
   Archive,
   Grid3X3,
   List,
-  Search
+  Search,
+  Filter,
+  ArrowUpDown,
+  CheckSquare,
+  Square
 } from 'lucide-react';
 import FileUpload from '@/components/FileUpload';
 import FilePreview from '@/components/FilePreview';
@@ -54,20 +60,40 @@ interface Breadcrumb {
   name: string;
 }
 
+interface Folder {
+  id: number;
+  name: string;
+  path: string;
+}
+
+interface Filters {
+  search?: string;
+  sort_by?: string;
+  sort_order?: string;
+  filter_type?: string;
+  filter_date?: string;
+}
+
 interface Props {
   files: FileItem[];
   breadcrumbs: Breadcrumb[];
   currentParentId: number | null;
+  folders: Folder[];
+  filters: Filters;
 }
 
-export default function FileManagerIndex({ files, breadcrumbs, currentParentId }: Props) {
+export default function FileManagerIndex({ files, breadcrumbs, currentParentId, folders, filters }: Props) {
   const [selectedFiles, setSelectedFiles] = useState<number[]>([]);
   const [showCreateFolder, setShowCreateFolder] = useState(false);
   const [folderName, setFolderName] = useState('');
   const [showPreview, setShowPreview] = useState(false);
   const [previewFile, setPreviewFile] = useState<FileItem | null>(null);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchQuery, setSearchQuery] = useState(filters.search || '');
+  const [showMoveDialog, setShowMoveDialog] = useState(false);
+  const [selectedFolder, setSelectedFolder] = useState<string>('');
+  const [showFilters, setShowFilters] = useState(false);
+
 
   // Filter files based on search query
   const filteredFiles = files.filter(file => 
@@ -138,6 +164,98 @@ export default function FileManagerIndex({ files, breadcrumbs, currentParentId }
     window.open(`/file-manager/download/${file.id}`, '_blank');
   };
 
+  const handleSelectFile = (fileId: number, checked: boolean) => {
+    if (checked) {
+      setSelectedFiles(prev => [...prev, fileId]);
+    } else {
+      setSelectedFiles(prev => prev.filter(id => id !== fileId));
+    }
+  };
+
+  const handleSelectAll = (checked: boolean) => {
+    if (checked) {
+      setSelectedFiles(files.map(file => file.id));
+    } else {
+      setSelectedFiles([]);
+    }
+  };
+
+  const handleMoveSelected = () => {
+    if (selectedFiles.length === 0) return;
+    setShowMoveDialog(true);
+  };
+
+  const handleDeleteSelected = () => {
+    if (selectedFiles.length === 0) return;
+    if (confirm(`Are you sure you want to move ${selectedFiles.length} item(s) to trash?`)) {
+      router.post('/file-manager/delete-multiple', {
+        file_ids: selectedFiles,
+      }, {
+        onSuccess: () => {
+          setSelectedFiles([]);
+        }
+      });
+    }
+  };
+
+  const handleMoveConfirm = () => {
+    if (selectedFiles.length === 0) return;
+    
+    router.post('/file-manager/move-multiple', {
+      file_ids: selectedFiles,
+      parent_id: selectedFolder || null,
+    }, {
+      onSuccess: () => {
+        setSelectedFiles([]);
+        setShowMoveDialog(false);
+        setSelectedFolder('');
+      }
+    });
+  };
+
+  const handleSearch = (query: string) => {
+    setSearchQuery(query);
+    router.get('/file-manager', {
+      parent_id: currentParentId,
+      search: query,
+      sort_by: filters.sort_by,
+      sort_order: filters.sort_order,
+      filter_type: filters.filter_type,
+      filter_date: filters.filter_date,
+    }, {
+      preserveState: true,
+      replace: true,
+    });
+  };
+
+  const handleSort = (sortBy: string, sortOrder: string) => {
+    router.get('/file-manager', {
+      parent_id: currentParentId,
+      search: searchQuery,
+      sort_by: sortBy,
+      sort_order: sortOrder,
+      filter_type: filters.filter_type,
+      filter_date: filters.filter_date,
+    }, {
+      preserveState: true,
+      replace: true,
+    });
+  };
+
+  const handleFilter = (filterType: string, filterDate: string) => {
+    router.get('/file-manager', {
+      parent_id: currentParentId,
+      search: searchQuery,
+      sort_by: filters.sort_by,
+      sort_order: filters.sort_order,
+      filter_type: filterType,
+      filter_date: filterDate,
+    }, {
+      preserveState: true,
+      replace: true,
+    });
+  };
+
 
   return (
     <AppLayout breadcrumbs={layoutBreadcrumbs}>
@@ -157,6 +275,16 @@ export default function FileManagerIndex({ files, breadcrumbs, currentParentId }
                 </p>
               </div>
               <div className="flex items-center gap-4">
+                <Button 
+                  variant="ghost" 
+                  size="sm"
+                  onClick={() => router.get('/file-manager/trash')}
+                  className="text-zinc-600 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                >
+                  <Trash2 className="w-4 h-4 mr-2" />
+                  Trash
+                </Button>
+                
                 <Dialog open={showCreateFolder} onOpenChange={setShowCreateFolder}>
                   <DialogTrigger asChild>
                     <Button 
@@ -215,17 +343,85 @@ export default function FileManagerIndex({ files, breadcrumbs, currentParentId }
           </div>
         </div>
 
-        {/* Search Bar */}
+        {/* Search and Filter Bar */}
         <div className="px-8 py-4 bg-zinc-50 dark:bg-zinc-800/50 border-b border-zinc-200 dark:border-zinc-700">
-          <div className="relative max-w-md">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-zinc-400 w-4 h-4" />
-            <Input
-              placeholder="Search files..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10 h-9 bg-white dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700 focus:ring-1 focus:ring-zinc-400 rounded-lg text-sm"
-            />
+          <div className="flex items-center gap-4">
+            <div className="relative flex-1 max-w-md">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-zinc-400 w-4 h-4" />
+              <Input
+                placeholder="Search files..."
+                value={searchQuery}
+                onChange={(e) => handleSearch(e.target.value)}
+                className="pl-10 h-9 bg-white dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700 focus:ring-1 focus:ring-zinc-400 rounded-lg text-sm"
+              />
+            </div>
+            
+            {/* Sort */}
+            <Select value={filters.sort_by || 'name'} onValueChange={(value) => handleSort(value, filters.sort_order || 'asc')}>
+              <SelectTrigger className="w-32 h-9">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="name">Name</SelectItem>
+                <SelectItem value="size">Size</SelectItem>
+                <SelectItem value="date">Date</SelectItem>
+                <SelectItem value="type">Type</SelectItem>
+              </SelectContent>
+            </Select>
+
+            {/* Sort Order */}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handleSort(filters.sort_by || 'name', filters.sort_order === 'asc' ? 'desc' : 'asc')}
+              className="h-9 px-3"
+            >
+              <ArrowUpDown className="w-4 h-4" />
+            </Button>
+
+            {/* Filter */}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowFilters(!showFilters)}
+              className="h-9 px-3"
+            >
+              <Filter className="w-4 h-4 mr-2" />
+              Filter
+            </Button>
           </div>
+
+          {/* Filter Options */}
+          {showFilters && (
+            <div className="mt-4 flex items-center gap-4">
+              <Select value={filters.filter_type || ''} onValueChange={(value) => handleFilter(value, filters.filter_date || '')}>
+                <SelectTrigger className="w-40 h-9">
+                  <SelectValue placeholder="File Type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">All Types</SelectItem>
+                  <SelectItem value="images">Images</SelectItem>
+                  <SelectItem value="videos">Videos</SelectItem>
+                  <SelectItem value="documents">Documents</SelectItem>
+                  <SelectItem value="archives">Archives</SelectItem>
+                  <SelectItem value="folders">Folders</SelectItem>
+                </SelectContent>
+              </Select>
+
+              <Select value={filters.filter_date || ''} onValueChange={(value) => handleFilter(filters.filter_type || '', value)}>
+                <SelectTrigger className="w-40 h-9">
+                  <SelectValue placeholder="Date" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">All Time</SelectItem>
+                  <SelectItem value="today">Today</SelectItem>
+                  <SelectItem value="week">This Week</SelectItem>
+                  <SelectItem value="month">This Month</SelectItem>
+                  <SelectItem value="year">This Year</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          )}
         </div>
 
         {/* Breadcrumbs */}
@@ -247,10 +443,64 @@ export default function FileManagerIndex({ files, breadcrumbs, currentParentId }
           </div>
         )}
 
+        {/* Bulk Actions Bar */}
+        {selectedFiles.length > 0 && (
+          <div className="px-8 py-3 bg-blue-50 dark:bg-blue-900/20 border-b border-blue-200 dark:border-blue-700">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <span className="text-sm font-medium text-blue-900 dark:text-blue-100">
+                  {selectedFiles.length} item(s) selected
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setSelectedFiles([])}
+                  className="h-8 px-3 text-blue-700 border-blue-300 hover:bg-blue-100 dark:text-blue-300 dark:border-blue-600 dark:hover:bg-blue-900/30"
+                >
+                  Clear Selection
+                </Button>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleMoveSelected}
+                  className="h-8 px-3"
+                >
+                  <Move className="w-4 h-4 mr-2" />
+                  Move
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleDeleteSelected}
+                  className="h-8 px-3 text-red-600 border-red-300 hover:bg-red-50 dark:text-red-400 dark:border-red-600 dark:hover:bg-red-900/30"
+                >
+                  <Trash2 className="w-4 h-4 mr-2" />
+                  Delete
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Files Display */}
         {filteredFiles.length > 0 ? (
           <div className="flex-1 p-8">
+            {/* Select All */}
+            {filteredFiles.length > 0 && (
+              <div className="mb-4 flex items-center gap-3">
+                <Checkbox
+                  checked={selectedFiles.length === filteredFiles.length && filteredFiles.length > 0}
+                  onCheckedChange={handleSelectAll}
+                  className="data-[state=checked]:bg-blue-600 data-[state=checked]:border-blue-600"
+                />
+                <span className="text-sm text-zinc-600 dark:text-zinc-400">
+                  Select All ({filteredFiles.length} items)
+                </span>
+              </div>
+            )}
+
             {/* Folders Section */}
             {filteredFiles.filter(file => file.is_folder).length > 0 && (
               <div className="mb-8">
@@ -264,15 +514,23 @@ export default function FileManagerIndex({ files, breadcrumbs, currentParentId }
                   {filteredFiles
                     .filter(file => file.is_folder)
                     .map((file) => (
-                      <FileCard
-                        key={file.id}
-                        file={file}
-                        onFileClick={handleFileClick}
-                        onDownload={handleDownload}
-                        onDelete={handleDelete}
-                        viewMode={viewMode}
-                        isFolder={true}
-                      />
+                      <div key={file.id} className="relative">
+                        <div className="absolute top-3 left-3 z-10">
+                          <Checkbox
+                            checked={selectedFiles.includes(file.id)}
+                            onCheckedChange={(checked) => handleSelectFile(file.id, checked as boolean)}
+                            className="data-[state=checked]:bg-blue-600 data-[state=checked]:border-blue-600"
+                          />
+                        </div>
+                        <FileCard
+                          file={file}
+                          onFileClick={handleFileClick}
+                          onDownload={handleDownload}
+                          onDelete={handleDelete}
+                          viewMode={viewMode}
+                          isFolder={true}
+                        />
+                      </div>
                     ))}
                 </div>
               </div>
@@ -292,15 +550,23 @@ export default function FileManagerIndex({ files, breadcrumbs, currentParentId }
                   {filteredFiles
                     .filter(file => !file.is_folder)
                     .map((file) => (
-                      <FileCard
-                        key={file.id}
-                        file={file}
-                        onFileClick={handleFileClick}
-                        onDownload={handleDownload}
-                        onDelete={handleDelete}
-                        viewMode={viewMode}
-                        isFolder={false}
-                      />
+                      <div key={file.id} className="relative">
+                        <div className="absolute top-3 left-3 z-10">
+                          <Checkbox
+                            checked={selectedFiles.includes(file.id)}
+                            onCheckedChange={(checked) => handleSelectFile(file.id, checked as boolean)}
+                            className="data-[state=checked]:bg-blue-600 data-[state=checked]:border-blue-600"
+                          />
+                        </div>
+                        <FileCard
+                          file={file}
+                          onFileClick={handleFileClick}
+                          onDownload={handleDownload}
+                          onDelete={handleDelete}
+                          viewMode={viewMode}
+                          isFolder={false}
+                        />
+                      </div>
                     ))}
                 </div>
               </div>
@@ -326,11 +592,6 @@ export default function FileManagerIndex({ files, breadcrumbs, currentParentId }
           </div>
         )}
 
-      {/* Floating Upload Button */}
-      <div className="fixed bottom-6 right-6 z-50">
-        <FloatingUploadButton parentId={currentParentId} />
-      </div>
-
       {/* File Preview Modal */}
       {showPreview && previewFile && (
         <FilePreview
@@ -338,24 +599,60 @@ export default function FileManagerIndex({ files, breadcrumbs, currentParentId }
           isOpen={showPreview}
           onClose={() => setShowPreview(false)}
           onDownload={handleDownload}
-        />
-        )}
-      </div>
-
-      {/* Floating Upload Button */}
-      <div className="fixed bottom-6 right-6 z-50">
-        <FloatingUploadButton parentId={currentParentId} />
-      </div>
-
-      {/* File Preview Modal */}
-      {showPreview && previewFile && (
-        <FilePreview
-          file={previewFile}
-          isOpen={showPreview}
-          onClose={() => setShowPreview(false)}
-          onDownload={handleDownload}
+          files={filteredFiles}
+          onFileChange={(file) => setPreviewFile(file)}
         />
       )}
+
+      {/* Floating Upload Button */}
+      <div className="fixed bottom-6 right-6 z-50">
+        <FloatingUploadButton parentId={currentParentId} />
+      </div>
+
+      {/* Move Files Modal */}
+      {showMoveDialog && (
+        <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-zinc-800 rounded-lg p-6 w-full max-w-md mx-4">
+            <h3 className="text-lg font-semibold mb-4">Move {selectedFiles.length} item(s)</h3>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2 block">
+                  Select destination folder:
+                </label>
+                <select 
+                  value={selectedFolder} 
+                  onChange={(e) => setSelectedFolder(e.target.value)}
+                  className="w-full p-2 border border-zinc-300 dark:border-zinc-600 rounded-md bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100"
+                >
+                  <option value="">Root (No folder)</option>
+                  {folders.map((folder) => (
+                    <option key={folder.id} value={folder.id.toString()}>
+                      {folder.path}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              
+              <div className="flex justify-end gap-2">
+                <Button 
+                  variant="outline" 
+                  onClick={() => {
+                    setShowMoveDialog(false);
+                    setSelectedFolder('');
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button onClick={handleMoveConfirm}>
+                  Move Items
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      </div>
     </AppLayout>
   );
 }

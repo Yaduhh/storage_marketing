@@ -12,7 +12,9 @@ import {
   Video,
   FileText,
   Archive,
-  User
+  User,
+  RotateCcw,
+  X
 } from 'lucide-react';
 
 interface FileItem {
@@ -40,11 +42,13 @@ interface FileCardProps {
   onFileClick: (file: FileItem) => void;
   onDownload: (file: FileItem) => void;
   onDelete: (fileId: number) => void;
+  onRestore?: (fileId: number) => void;
   viewMode: 'grid' | 'list';
   isFolder?: boolean;
+  isDeleted?: boolean;
 }
 
-export default function FileCard({ file, onFileClick, onDownload, onDelete, viewMode, isFolder = false }: FileCardProps) {
+export default function FileCard({ file, onFileClick, onDownload, onDelete, onRestore, viewMode, isFolder = false, isDeleted = false }: FileCardProps) {
   const [imageError, setImageError] = useState(false);
 
   const getFileIcon = () => {
@@ -106,17 +110,49 @@ export default function FileCard({ file, onFileClick, onDownload, onDelete, view
 
           {/* Actions */}
           <div className="opacity-0 group-hover:opacity-100 transition-opacity">
-            <Button
-              size="sm"
-              variant="ghost"
-              className="h-7 w-7 p-0 text-zinc-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20"
-              onClick={(e) => {
-                e.stopPropagation();
-                onDelete(file.id);
-              }}
-            >
-              <Trash2 className="w-4 h-4" />
-            </Button>
+            {isDeleted ? (
+              <div className="flex items-center gap-1">
+                {onRestore && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-7 w-7 p-0 text-zinc-400 hover:text-green-500 hover:bg-green-50 dark:hover:bg-green-900/20"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onRestore(file.id);
+                    }}
+                    title="Restore"
+                  >
+                    <RotateCcw className="w-4 h-4" />
+                  </Button>
+                )}
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-7 w-7 p-0 text-zinc-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onDelete(file.id);
+                  }}
+                  title="Permanently delete"
+                >
+                  <X className="w-4 h-4" />
+                </Button>
+              </div>
+            ) : (
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-7 w-7 p-0 text-zinc-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDelete(file.id);
+                }}
+                title="Move to trash"
+              >
+                <Trash2 className="w-4 h-4" />
+              </Button>
+            )}
           </div>
         </div>
       </div>
@@ -183,17 +219,49 @@ export default function FileCard({ file, onFileClick, onDownload, onDelete, view
                 <Download className="w-4 h-4" />
               </Button>
             )}
-            <Button
-              size="sm"
-              variant="ghost"
-              className="h-7 w-7 p-0 text-zinc-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20"
-              onClick={(e) => {
-                e.stopPropagation();
-                onDelete(file.id);
-              }}
-            >
-              <Trash2 className="w-4 h-4" />
-            </Button>
+            {isDeleted ? (
+              <div className="flex items-center gap-1">
+                {onRestore && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-7 w-7 p-0 text-zinc-400 hover:text-green-500 hover:bg-green-50 dark:hover:bg-green-900/20"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onRestore(file.id);
+                    }}
+                    title="Restore"
+                  >
+                    <RotateCcw className="w-4 h-4" />
+                  </Button>
+                )}
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-7 w-7 p-0 text-zinc-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onDelete(file.id);
+                  }}
+                  title="Permanently delete"
+                >
+                  <X className="w-4 h-4" />
+                </Button>
+              </div>
+            ) : (
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-7 w-7 p-0 text-zinc-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDelete(file.id);
+                }}
+                title="Move to trash"
+              >
+                <Trash2 className="w-4 h-4" />
+              </Button>
+            )}
           </div>
         </div>
       </div>
@@ -304,17 +372,49 @@ export default function FileCard({ file, onFileClick, onDownload, onDelete, view
                 <Download className="w-4 h-4" />
               </Button>
             )}
-            <Button
-              size="sm"
-              variant="ghost"
-              className="h-7 w-7 p-0 text-zinc-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20"
-              onClick={(e) => {
-                e.stopPropagation();
-                onDelete(file.id);
-              }}
-            >
-              <Trash2 className="w-4 h-4" />
-            </Button>
+            {isDeleted ? (
+              <div className="flex items-center gap-1">
+                {onRestore && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-7 w-7 p-0 text-zinc-400 hover:text-green-500 hover:bg-green-50 dark:hover:bg-green-900/20"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onRestore(file.id);
+                    }}
+                    title="Restore"
+                  >
+                    <RotateCcw className="w-4 h-4" />
+                  </Button>
+                )}
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-7 w-7 p-0 text-zinc-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onDelete(file.id);
+                  }}
+                  title="Permanently delete"
+                >
+                  <X className="w-4 h-4" />
+                </Button>
+              </div>
+            ) : (
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-7 w-7 p-0 text-zinc-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDelete(file.id);
+                }}
+                title="Move to trash"
+              >
+                <Trash2 className="w-4 h-4" />
+              </Button>
+            )}
           </div>
         </div>
       </div>
