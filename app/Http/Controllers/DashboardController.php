@@ -81,7 +81,7 @@ class DashboardController extends Controller
             })
             ->count();
 
-        $deletedFiles = FileManager::deleted()
+        $deletedFiles = FileManager::where('status_deleted', true)
             ->count();
 
         return [
