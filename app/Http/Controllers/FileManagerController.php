@@ -405,10 +405,6 @@ class FileManagerController extends Controller
      */
     public function rename(Request $request, FileManager $fileManager)
     {
-        if ($fileManager->user_id !== Auth::id()) {
-            abort(403);
-        }
-
         $request->validate([
             'name' => 'required|string|max:255',
         ]);
@@ -440,9 +436,6 @@ class FileManagerController extends Controller
      */
     public function move(Request $request, FileManager $fileManager)
     {
-        if ($fileManager->user_id !== Auth::id()) {
-            abort(403);
-        }
 
         $request->validate([
             'parent_id' => 'nullable|exists:file_managers,id',
@@ -563,9 +556,6 @@ class FileManagerController extends Controller
      */
     public function restore(FileManager $fileManager)
     {
-        if ($fileManager->user_id !== Auth::id()) {
-            abort(403);
-        }
 
         if ($fileManager->is_folder) {
             // Restore all children first
@@ -584,9 +574,6 @@ class FileManagerController extends Controller
      */
     public function forceDelete(FileManager $fileManager)
     {
-        if ($fileManager->user_id !== Auth::id()) {
-            abort(403);
-        }
 
         if ($fileManager->is_folder) {
             // Force delete all children first
